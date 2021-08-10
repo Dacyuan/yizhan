@@ -1,0 +1,61 @@
+version: '2'
+services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    hostname: zookeeper
+    container_name: zk
+    restart: always
+    ports:
+      - "2181:2181"
+      
+  kafka:
+    image: wurstmeister/kafka
+    hostname: kafka
+    container_name: kfk
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9999:9999"
+      - "29092:29092"
+    expose:
+      - "9093"
+    environment:
+        KAFKA_ADVERTISED_LISTENERS: OUTSIDE://192.168.124.224:9092,REST://192.168.124.224:29092,INSIDE://kafka:9093
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT,REST:PLAINTEXT
+        KAFKA_LISTENERS: OUTSIDE://0.0.0.0:9092,REST://0.0.0.0:29092,INSIDE://0.0.0.0:9093
+        KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+        KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+        KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=192.168.124.224 -Dcom.sun.management.jmxremote.rmi.port=9999"
+        JMX_PORT: 9999
+        KAFKA_HEAP_OPTS: "-Xmx16G -Xms16G"
+        KAFKA_CREATE_TOPICS: "test:1:1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      
+  rest-proxy:
+    image: confluentinc/cp-kafka-rest:5.5.1
+    hostname: rest-proxy
+    container_name: rest-proxy
+    restart: always
+    depends_on:
+      - zookeeper
+      - kafka
+    ports:
+      - 8089:8082
+    environment:
+      KAFKA_REST_HOST_NAME: rest-proxy
+      KAFKA_REST_BOOTSTRAP_SERVERS: 'kafka:29092'
+      KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
+      KAFKA_REST_CONSUMER_INSTANCE_TIMEOUT_MS: 86400000
+
+  kafka-eagle:
+    image: dachengyuan/kafka_eagle:v1
+    depends_on:
+      - kafka
+    ports:
+      - "8048:8048"
+    container_name: ke   
+    volumes:
+      - ./system-config.properties:/kafka-eagle/conf/system-config.properties
